@@ -1,4 +1,4 @@
-CFLAGS += -mappletvos-version-min=12.0 -std=gnu17 -fvisibility=hidden
+CFLAGS += $(TARGET_MIN_FLAG) -std=gnu17 -fvisibility=hidden
 LDFLAGS += -Wl,-dead_strip -Wno-unused-command-line-argument
 OBJDIR = obj
 C_SRC = $(wildcard *.c)

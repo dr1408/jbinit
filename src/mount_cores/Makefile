@@ -1,4 +1,4 @@
-CFLAGS += -mappletvos-version-min=12.0 -std=gnu17 -U__nonnull -DMOUNT_CORES
+CFLAGS += $(TARGET_MIN_FLAG) -std=gnu17 -U__nonnull -DMOUNT_CORES
 CFLAGS += -isystem $(ROOT)/apple-include
 LDFLAGS += -Wl,-dead_strip -Wno-unused-command-line-argument
 SRC = $(wildcard *.c)

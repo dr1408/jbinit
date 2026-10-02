@@ -22,6 +22,42 @@ static void* arm64_dyld_buf = NULL;
 
 extern bool has_found_platform_patch;
 
+static void *symbol_ptr(void *buf, struct nlist_64 *symbol)
+{
+    void *ptr = macho_va_to_ptr(buf, symbol->offset);
+    if (ptr) {
+        return ptr;
+    }
+
+    return buf + symbol->offset;
+}
+
+static uint64_t symbol_scan_len(void* buf, struct nlist_64 *symbol, void *func_addr, uint64_t max_fallback)
+{
+    uint64_t func_len = macho_get_symbol_size(symbol);
+    if (func_len) {
+        return func_len;
+    }
+
+    struct section_64 *section = macho_find_section_for_ptr(buf, func_addr);
+    if (!section) {
+        return max_fallback;
+    }
+
+    uint64_t file_off = (uint8_t *)func_addr - (uint8_t *)buf;
+    if (file_off < section->offset) {
+        return max_fallback;
+    }
+
+    uint64_t section_off = file_off - section->offset;
+    if (section_off >= section->size) {
+        return max_fallback;
+    }
+
+    uint64_t remaining = section->size - section_off;
+    return remaining < max_fallback ? remaining : max_fallback;
+}
+
 bool platform_symbol_new_classifier(const char* sym_name, void *arg)
 {
     (void)arg;
@@ -50,8 +86,8 @@ void platform_check_patch(void* arm64_dyld_buf, int platform) {
     if (!platform_symbol)
         panic("failed to find symbol %s or *%s", platform_check_symbol, platform_check_symbol_new_suffix);
 
-    void *func_addr = arm64_dyld_buf + platform_symbol->offset;
-    uint64_t func_len = macho_get_symbol_size(platform_symbol);
+    void *func_addr = symbol_ptr(arm64_dyld_buf, platform_symbol);
+    uint64_t func_len = symbol_scan_len(arm64_dyld_buf, platform_symbol, func_addr, 0x4000);
 
     // this patch tricks dyld into thinking everything is for the current platform
     if (generation == 1)
@@ -87,7 +123,7 @@ bool patch_dyld_in_cache_new(struct pf_patch_t __attribute__((unused)) *patch, u
         return false;
     }
 
-    void* appleinternal = arm64_dyld_buf + appleinternal_sym->offset;
+    void* appleinternal = symbol_ptr(arm64_dyld_buf, appleinternal_sym);
 
     uint32_t* cbz = pf_find_next(stream + 3, 5, 0x34000008, 0xff00001f); // cbz w8, ...
 
@@ -137,6 +173,38 @@ bool patch_dyld_in_cache_new(struct pf_patch_t __attribute__((unused)) *patch, u
     return true;
 }
 
+
+bool patch_dyld_in_cache_xr_18710(struct pf_patch_t __attribute__((unused)) *patch, uint32_t *stream) {
+    struct nlist_64 *appleinternal_sym = macho_find_symbol(arm64_dyld_buf, appleinternal_symbol);
+
+    if (!appleinternal_sym) {
+        LOG("%s: failed to find %s\n", __func__, appleinternal_symbol);
+        return false;
+    }
+
+    void* appleinternal = symbol_ptr(arm64_dyld_buf, appleinternal_sym);
+
+    if (pf_follow_branch(arm64_dyld_buf, stream) != appleinternal) {
+        LOG("%s: candidate callsite is not %s callsite\n", __func__, appleinternal_symbol);
+        return false;
+    }
+
+    char* env = pf_follow_xref(arm64_dyld_buf, &stream[4]);
+    if (!env)
+        return false;
+
+    if (strcmp(env, "DYLD_IN_CACHE")) {
+        LOG("%s: environment variable is not DYLD_IN_CACHE\n", __func__);
+        return false;
+    }
+
+    uint32_t* no_cache = &stream[1] + ((stream[1] >> 5) & 0x7ffff);
+    stream[0] = arm64_branch(stream, no_cache, false);
+
+    has_found_dyld_in_cache = true;
+    return true;
+}
+
 void dyld_in_cache_patch(void* buf) {
     uint32_t matches[] = {
         0xaa1303e0, // mov x0, x19
@@ -177,18 +245,42 @@ void dyld_in_cache_patch(void* buf) {
         0xff00001f
     };
 
+    uint32_t matches_xr_18710[] = {
+        0x94000000, // bl SyscallDelegate::internalInstall
+        0x34000000, // cbz w0, no-cache path
+        0xf8000000, // ldur/ldr x0, ... KernelArgs
+        0x94000000, // bl KernelArgs::findEnvp
+        0x90000001, // adrp x1, "DYLD_IN_CACHE"@PAGE
+        0x91000021, // add x1, "DYLD_IN_CACHE"@PAGEOFF
+        0x94000000, // bl __simple_getenv
+        0xb5000000  // cbnz x0, cache path
+    };
+    uint32_t masks_xr_18710[] = {
+        0xfc000000,
+        0xff00001f,
+        0xf8000000,
+        0xfc000000,
+        0x9f00001f,
+        0xffc003ff,
+        0xfc000000,
+        0xff00001f
+    };
+
     struct pf_patch_t dyld_in_cache = pf_construct_patch(matches, masks, sizeof(matches) / sizeof(uint32_t), (void *) patch_dyld_in_cache);
     
     struct pf_patch_t dyld_in_cache_new = pf_construct_patch(matches_new, masks_new, sizeof(matches_new) / sizeof(uint32_t), (void *) patch_dyld_in_cache_new);
 
+    struct pf_patch_t dyld_in_cache_xr_18710 = pf_construct_patch(matches_xr_18710, masks_xr_18710, sizeof(matches_xr_18710) / sizeof(uint32_t), (void *) patch_dyld_in_cache_xr_18710);
+
     struct pf_patch_t patches[] = {
         dyld_in_cache,
-        dyld_in_cache_new
+        dyld_in_cache_new,
+        dyld_in_cache_xr_18710
     };
     struct pf_patchset_t patchset = pf_construct_patchset(patches, sizeof(patches) / sizeof(struct pf_patch32_t), (void *) pf_find_maskmatch32);
     struct nlist_64 *start = macho_find_symbol(buf, start_symbol);
-    void *func_addr = buf + start->offset;
-    uint64_t func_len = macho_get_symbol_size(start);
+    void *func_addr = symbol_ptr(buf, start);
+    uint64_t func_len = symbol_scan_len(buf, start, func_addr, 0x20000);
 
     pf_patchset_emit(func_addr, func_len, patchset);
 
@@ -205,8 +297,8 @@ void dyld_proces_config_patch(void* buf) {
         return;
     }
     
-    uint32_t *func_addr = buf + amfi_flags->offset;
-    uint64_t func_len = macho_get_symbol_size(amfi_flags);
+    uint32_t *func_addr = symbol_ptr(buf, amfi_flags);
+    uint64_t func_len = symbol_scan_len(buf, amfi_flags, func_addr, 0x4000);
     if (func_len < 16) {
         dev_panic("%s too small", amfi_check_dyld_policy_self_symbol);
         return;

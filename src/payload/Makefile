@@ -1,5 +1,5 @@
 SUBDIRS = loader p1ctl jailbreakd
-CFLAGS += -mappletvos-version-min=12.0 -std=gnu17
+CFLAGS += $(TARGET_MIN_FLAG) -std=gnu17
 CFLAGS += -Wno-nullability-completeness
 LDFLAGS += -Wl,-dead_strip -Wno-unused-command-line-argument
 LDFLAGS += -Wl,-sectcreate,__TEXT,__info_plist,Info.plist

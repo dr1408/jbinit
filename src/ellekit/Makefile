@@ -7,7 +7,7 @@ $(ELLEKIT):
 ifeq ($(MAC),1)
 	cd ellekit; \
 		CC="" CXX="" LD="" xcodebuild build -arch $(JBINIT_ARCH) -sdk $(ELLEKIT_PLATFORM) -scheme ellekit -configuration Release -derivedDataPath ../ellekit_build \
-		APPLETVOS_DEPLOYMENT_TARGET=14.0 \
+		$(DEPLOYMENT_TARGET_VAR)=$(TARGET_VERSION_MIN) \
 		CODE_SIGNING_ALLOWED=NO \
 		LD_DYLIB_INSTALL_NAME="@rpath/CydiaSubstrate.framework/CydiaSubstrate"
 ifneq ($(DEV_BUILD),1)

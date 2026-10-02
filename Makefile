@@ -13,6 +13,17 @@ NEWFS_HFS = mkfs.hfsplus
 endif
 LDID = ldid
 DSYMUTIL = dsymutil
+TARGET_SDK ?= iphoneos
+TARGET_VERSION_MIN ?= 12.0
+ifeq ($(TARGET_SDK),appletvos)
+TARGET_TRIPLE ?= arm64-apple-tvos$(TARGET_VERSION_MIN)
+TARGET_MIN_FLAG ?= -mappletvos-version-min=$(TARGET_VERSION_MIN)
+DEPLOYMENT_TARGET_VAR ?= APPLETVOS_DEPLOYMENT_TARGET
+else
+TARGET_TRIPLE ?= arm64-apple-ios$(TARGET_VERSION_MIN)
+TARGET_MIN_FLAG ?= -miphoneos-version-min=$(TARGET_VERSION_MIN)
+DEPLOYMENT_TARGET_VAR ?= IPHONEOS_DEPLOYMENT_TARGET
+endif
 ifeq ($(UNAME),Darwin)
 VTOOL = vtool
 STRIP = strip
@@ -20,24 +31,24 @@ AR = ar
 endif
 ifeq ($(MAC),1)
 MACOSX_SYSROOT := $(shell xcrun -sdk macosx --show-sdk-path)
-TARGET_SYSROOT := $(shell xcrun -sdk appletvos --show-sdk-path)
+TARGET_SYSROOT := $(shell xcrun -sdk $(TARGET_SDK) --show-sdk-path)
 CC := $(shell xcrun --find clang)
 CXX := $(shell xcrun --find clang++)
 else ifeq ($(UNAME),Darwin)
 CC = clang
 CXX = clang++
 MACOSX_SYSROOT ?= /usr/share/SDKs/MacOSX.sdk
-TARGET_SYSROOT ?= /usr/share/SDKs/AppleTVOS.sdk
+TARGET_SYSROOT ?= /usr/share/SDKs/$(TARGET_SDK).sdk
 else
 VTOOL = cctools-vtool
 STRIP = cctools-strip
 AR = cctools-ar
 CC = clang
-CFLAGS += -target arm64-apple-tvos
+CFLAGS += -target $(TARGET_TRIPLE)
 LD := $(shell command -v ld64)
 LDFLAGS += "-fuse-ld=$(LD)"
 MACOSX_SYSROOT ?= $(HOME)/cctools/SDKs/MacOSX.sdk
-TARGET_SYSROOT ?= $(HOME)/cctools/SDKs/AppleTVOS.sdk
+TARGET_SYSROOT ?= $(HOME)/cctools/SDKs/iPhoneOS.sdk
 endif
 CFLAGS += -isystem $(ROOT)/apple-include -I$(ROOT)/include -isysroot $(TARGET_SYSROOT)
 OBJC = $(CC)
@@ -56,7 +67,7 @@ LDFLAGS += -Wl,-object_path_lto,$(LTO_TMP)/lto.o
 
 SUBDIRS = fakedyld payload_dylib payload systemhook universalhooks mount_cores ellekit bridgehook
 
-export ROOT CC CXX OBJC CFLAGS CC_FOR_BUILD HFSPLUS DMG NEWFS_HFS MAC UNAME SED SHELL LDFLAGS VTOOL STRIP DSYMUTIL LDID AR SUBDIRS TARGET_SYSROOT
+export ROOT CC CXX OBJC CFLAGS CC_FOR_BUILD HFSPLUS DMG NEWFS_HFS MAC UNAME SED SHELL LDFLAGS VTOOL STRIP DSYMUTIL LDID AR SUBDIRS TARGET_SYSROOT TARGET_SDK TARGET_VERSION_MIN TARGET_TRIPLE TARGET_MIN_FLAG DEPLOYMENT_TARGET_VAR
 
 all: binaries tools
 	$(MAKE) -C $(ROOT)/src ramdisk.dmg binpack.dmg

@@ -1,4 +1,4 @@
-CFLAGS += -mappletvos-version-min=12.0 -std=gnu17 -fvisibility=hidden
+CFLAGS += $(TARGET_MIN_FLAG) -std=gnu17 -fvisibility=hidden
 CFLAGS += -DHAVE_CRASHREPORTER
 LDFLAGS += -Wl,-dead_strip -Wno-unused-command-line-argument
 LDFLAGS += -install_name /cores/payload.dylib

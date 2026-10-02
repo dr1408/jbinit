@@ -1,6 +1,6 @@
 --- !tapi-tbd
 tbd-version:     4
-targets:         [ arm64-ios, arm64-tvos, arm64e-tvos, arm64-bridgeos ]
+targets:         [ arm64-ios, arm64e-ios, arm64-tvos, arm64e-tvos, arm64-bridgeos ]
 uuids:
   - target:          arm64-ios
     value:           FFB2683B-781D-3D73-BC3F-1D4797C00F0D
@@ -10,7 +10,7 @@ uuids:
     value:           FFB2683B-781D-3D73-BC3F-1D4797C00F02
 install-name:    '/usr/lib/libMobileGestalt.dylib'
 exports:
-  - targets:         [ arm64-ios, arm64-tvos, arm64e-tvos, arm64-bridgeos ]
+  - targets:         [ arm64-ios, arm64e-ios, arm64-tvos, arm64e-tvos, arm64-bridgeos ]
     symbols:         [ _MGCancelNotifications, _MGCopyAnswer, _MGCopyAnswerWithError, 
                        _MGCopyMultipleAnswers, _MGGetBoolAnswer, _MGGetFloat32Answer, 
                        _MGGetProductType, _MGGetSInt32Answer, _MGGetSInt64Answer, 

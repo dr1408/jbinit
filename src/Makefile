@@ -24,7 +24,7 @@ endif
 
 CFLAGS += -DFAKEDYLD_ENABLE_LOGGING
 
-export CFLAGS JBINIT_ARCH
+export CFLAGS JBINIT_ARCH TARGET_SDK
 
 CREATE_UDRW_IMAGE = \
 	set -e; \
@@ -50,6 +50,17 @@ CREATE_UDRW_IMAGE = \
 .PHONY: all clean $(patsubst %, %-all, $(SUBDIRS)) $(patsubst %, %-clean, $(SUBDIRS)) libjailbreak
 
 ELLEKIT_DYLIB ?= ellekit/ellekit_build/Build/Products/Release-iphoneos/libellekit.dylib
+
+ifeq ($(TARGET_SDK),appletvos)
+BUILD_TV_LOADER ?= 1
+else
+BUILD_TV_LOADER ?= 0
+endif
+
+BINPACK_DEPS = binpack.tar loader.dmg $(patsubst %, %-all, $(SUBDIRS))
+ifeq ($(BUILD_TV_LOADER),1)
+BINPACK_DEPS += tvloader.dmg
+endif
 
 all: ramdisk.dmg binpack.dmg
 
@@ -96,14 +107,14 @@ else
 endif
 	rm -rf palera1nLoaderTV
 
-binpack.dmg: binpack.tar loader.dmg tvloader.dmg $(patsubst %, %-all, $(SUBDIRS))
+binpack.dmg: $(BINPACK_DEPS)
 	rm -rf binpack.dmg binpack.img binpack
 	mkdir binpack
 	touch binpack/.installed_overlay
 	tar -C binpack --preserve-permissions -xf binpack.tar
 	rm -rf binpack/usr/share binpack/private cores
 	mkdir -p binpack/Applications
-	mkdir -p binpack/usr/lib binpack/usr/share binpack/usr/lib/libroot
+	mkdir -p binpack/usr/lib binpack/usr/share binpack/usr/lib/libroot binpack/usr/libexec
 	mkdir -p binpack/Library/Frameworks/CydiaSubstrate.framework
 	mkdir -p binpack/Library/Frameworks/CydiaSubstrateBridgeOS.framework
 	mkdir -p binpack/Library/LaunchDaemons
@@ -113,6 +124,7 @@ binpack.dmg: binpack.tar loader.dmg tvloader.dmg $(patsubst %, %-all, $(SUBDIRS)
 	cp -a $(ROOT)/shared/*.plist binpack/Library/LaunchDaemons
 	cp -a $(ROOT)/shared/boot.jp2 binpack/usr/share
 	#cp -a $(ROOT)/shared/RSOD.heic binpack/usr/share
+	install -m755 $(ROOT)/src/payload/loader/try_uicache.sh binpack/usr/libexec
 	cp -a $(ROOT)/shared/copyright binpack/usr/share
 	cp -a $(ROOT)/LICENSE binpack/usr/share/copyright/Licnese-plinit.txt
 	chmod 644 binpack/Library/LaunchDaemons/*.plist
@@ -120,7 +132,7 @@ binpack.dmg: binpack.tar loader.dmg tvloader.dmg $(patsubst %, %-all, $(SUBDIRS)
 	install -m755 universalhooks/universalhooks.dylib binpack/usr/lib
 	install -m755 bridgehook/bridgehook.dylib binpack/usr/lib
 	cp loader.dmg binpack
-	cp tvloader.dmg binpack
+	@if [ "$(BUILD_TV_LOADER)" = "1" ]; then cp tvloader.dmg binpack; fi
 	install -m755 $(ELLEKIT_DYLIB) binpack/usr/lib
 	ln -s ../../../usr/lib/libellekit.dylib binpack/Library/Frameworks/CydiaSubstrate.framework/CydiaSubstrate
 	ln -s ../../../usr/lib/bridgehook.dylib binpack/Library/Frameworks/CydiaSubstrateBridgeOS.framework/CydiaSubstrate
@@ -139,7 +151,7 @@ $(patsubst %, %-all, $(SUBDIRS)): libjailbreak
 	$(MAKE) -C $$(echo $@ | cut -d- -f1) all
 
 clean: $(patsubst %, %-clean, $(SUBDIRS))
-	rm -rf binpack.img ramdisk.img loader.img binpack.dmg ramdisk.dmg loader.dmg palera1nLoader binpack ramdisk
+	rm -rf binpack.img ramdisk.img loader.img tvloader.img binpack.dmg ramdisk.dmg loader.dmg tvloader.dmg palera1nLoader palera1nLoaderTV binpack ramdisk
 
 $(patsubst %, %-clean, $(SUBDIRS)):
 	$(MAKE) -C $$(echo $@ | cut -d- -f1) clean

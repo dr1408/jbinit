@@ -144,8 +144,15 @@ __attribute__((constructor))void launchd_hook_main(void) {
   crashreporter_start();
   setenv("JB_SANDBOX_EXTENSIONS", generate_sandbox_extensions(), 1);
   load_pflags();
+
   pid_t pid;
   int ret, status;
+  /* need to make sure ASAN in payload runs */
+#if ASAN
+  const char version[] = "2.0";
+  CHECK_ERROR(sysctlbyname("kern.osproductversion", NULL, NULL, version, sizeof(version)-1), "sysctl kern.osproductversion");
+#endif
+
   CHECK_ERROR(posix_spawn(&pid, "/cores/payload", NULL, NULL, (char*[]){"/cores/payload","-f",NULL},environ), "could not spawn payload");
   waitpid(pid, &status, 0);
   if (WIFEXITED(status)) {
@@ -172,7 +179,7 @@ __attribute__((constructor))void launchd_hook_main(void) {
       ((pflags & palerain_option_verbose_boot) == 0)
       && (jailbreak_get_platform() != PLATFORM_TVOS || getenv("XPC_USERSPACE_REBOOTED"))
       ) {
-          posix_spawn(&pid, "/cores/payload", NULL, NULL, (char*[]){"bootscreend" ,NULL}, (char*[]){ "XPC_NULL_BOOTSTRAP=1" });
+          posix_spawn(&pid, "/cores/payload", NULL, NULL, (char*[]){"bootscreend" ,NULL}, (char*[]){ "XPC_NULL_BOOTSTRAP=1", NULL });
       }
 
   void* systemhook_handle = dlopen(HOOK_DYLIB_PATH, RTLD_NOW);

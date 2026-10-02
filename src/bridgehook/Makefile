@@ -1,6 +1,6 @@
-CFLAGS += -mappletvos-version-min=12.0 -std=gnu17 -fvisibility=hidden
+CFLAGS += $(TARGET_MIN_FLAG) -std=gnu17 -fvisibility=hidden
 LDFLAGS += -Wl,-dead_strip -Wl,-exported_symbols_list,symbol_list.txt -Wno-unused-command-line-argument
-CXXFLAGS = -mappletvos-version-min=12.0 -fvisibility=hidden
+CXXFLAGS = $(TARGET_MIN_FLAG) -fvisibility=hidden
 CXXFLAGS += -Wl,-dead_strip -Wno-unused-command-line-argument
 OBJDIR = obj
 C_SRC = $(wildcard *.c)
@@ -33,9 +33,9 @@ dobby/build/libdobby.a:
 		-DCMAKE_C_FLAGS="$(CFLAGS)" \
 		-DCMAKE_CXX_FLAGS="$(CXXFLAGS)" \
 		-DCMAKE_CROSSCOMPILING=true \
-		-DCMAKE_EXE_LINKER_FLAGS="-mappletvos-version-min=12.0" \
+		-DCMAKE_EXE_LINKER_FLAGS="$(TARGET_MIN_FLAG)" \
 		-DCMAKE_SYSTEM_NAME=Darwin \
-		-DCMAKE_OSX_DEPLOYMENT_TARGET=12.0 \
+		-DCMAKE_OSX_DEPLOYMENT_TARGET=$(TARGET_VERSION_MIN) \
 		-DCMAKE_SYSTEM_PROCESSOR=arm64 \
 		-DDOBBY_BUILD_SILICON=ON \
 		-DCMAKE_OSX_SYSROOT="$(TARGET_SYSROOT)" \
